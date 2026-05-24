@@ -20,7 +20,6 @@ impl GameState {
     pub const LEN: usize = 8 + 32 + 32 + 1;
 }
 
-
 impl PlayerState {
     pub const LEN: usize = 8 + 32 + 8 + 8 + 1 + 1;
 }
