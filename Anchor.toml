@@ -5,11 +5,13 @@ package_manager = "yarn"
 resolution = true
 skip-lint = false
 
-[programs.localnet]
+#[programs.localnet]
+[programs.devnet]
 solana_escrow = "w7517rMHPhwuxQeRMDr7rHFfCCRy5CAi32HYA4xaNkK"
 
 [provider]
-cluster = "localnet"
+#cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
