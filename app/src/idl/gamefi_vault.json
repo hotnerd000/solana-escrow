@@ -1,0 +1,108 @@
+{
+  "address": "w7517rMHPhwuxQeRMDr7rHFfCCRy5CAi32HYA4xaNkK",
+  "metadata": {
+    "name": "solana_escrow",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "stake_player",
+      "discriminator": [
+        33,
+        238,
+        170,
+        216,
+        235,
+        5,
+        132,
+        2
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "PlayerState",
+      "discriminator": [
+        56,
+        3,
+        60,
+        86,
+        174,
+        16,
+        244,
+        195
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "PlayerState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "last_stake_time",
+            "type": "i64"
+          },
+          {
+            "name": "accumulated_xp",
+            "type": "u64"
+          },
+          {
+            "name": "is_staked",
+            "type": "bool"
+          }
+        ]
+      }
+    }
+  ]
+}
