@@ -34,7 +34,7 @@ pub mod solana_escrow {
         let elapsed_seconds = clock.unix_timestamp.saturating_sub(player_state.last_stake_time);
 
         //Base rate: Earn 10 XP per second elapsed
-        let base_xp_earned = (elapsed_seconds as u64).saturating_mul(10)
+        let base_xp_earned = (elapsed_seconds as u64).saturating_mul(10);
 
         // Apply a 1.5x multiplier for active game sessions
         let total_xp_earned = base_xp_earned.saturating_mul(15) / 10;

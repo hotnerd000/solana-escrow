@@ -80,11 +80,34 @@ export const useGameFiProgram = () => {
     }
   };
 
+  const playGameAction = async (): Promise<string> => {
+    if (!program || !wallet) throw new Error("Wallet context unavailable");
+
+    const playerStatePda = getPlayerStatePda(wallet.publicKey);
+
+    try {
+      const txSignature = await program.methods
+        .playGame()
+        .accounts({
+          player: wallet.publicKey,
+          playerState: playerStatePda,
+        })
+        .rpc();
+
+      return txSignature;
+
+    } catch (error) {
+      console.error("Play game transaction execution failed:", error);
+      throw error;
+    }
+  }
+
   return {
     program,
     programId,
     getPlayerStatePda,
     initializeSession,
-    fetchPlayerState
+    fetchPlayerState,
+    playGameAction
   };
 };
