@@ -8,6 +8,58 @@
   },
   "instructions": [
     {
+      "name": "play_game",
+      "discriminator": [
+        37,
+        88,
+        207,
+        85,
+        42,
+        144,
+        122,
+        197
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "stake_player",
       "discriminator": [
         33,
@@ -18,6 +70,62 @@
         5,
         132,
         2
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "unstake_player",
+      "discriminator": [
+        135,
+        29,
+        93,
+        138,
+        30,
+        138,
+        206,
+        228
       ],
       "accounts": [
         {
@@ -77,6 +185,18 @@
         244,
         195
       ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "PlayerNotStaked",
+      "msg": "Player must initialize their staking session before playing."
+    },
+    {
+      "code": 6001,
+      "name": "CustomError",
+      "msg": "Custom error message"
     }
   ],
   "types": [
