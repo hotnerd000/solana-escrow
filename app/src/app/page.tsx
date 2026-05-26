@@ -98,13 +98,14 @@ export default function Home() {
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       const newText = { id: Date.now(), x, y };
-      
+
       setFloatingTexts((prev) => [...prev, newText]);
       setTimeout(() => {
         setFloatingTexts((prev) => prev.filter((t) => t.id !== newText.id));
       }, 800);
     }
   };
+
   const handleSyncBlockchain = async () => {
     if (!connected || !publicKey || pendingXp === 0) return;
     setIsLoading(true);
@@ -120,6 +121,7 @@ export default function Home() {
       setIsLoading(false);
     }
   };
+
   if (!mounted) {
     return React.createElement(
       "div",
@@ -130,9 +132,12 @@ export default function Home() {
       "🎮 Loading Engine..."
     );
   }
+
   const explorerUrl = txSignature
     ? "solana.com" + txSignature + "?cluster=devnet"
     : "";
+    
+
   return React.createElement(
     "main",
     {
