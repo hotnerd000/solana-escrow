@@ -1,9 +1,15 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
-import WalletButton from '../components/WalletButton';
-import { useGameFiProgram } from '../hooks/useGameFiProgram';
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import WalletButton from "../components/WalletButton";
+import { useGameFiProgram } from "../hooks/useGameFiProgram";
+
+interface FloatingText {
+  id: number;
+  x: number;
+  y: number;
+}
 
 export default function Home() {
   const { connected, publicKey } = useWallet();
@@ -13,52 +19,58 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
   
-  // Dynamic variables synced via real-time RPC polling
-  const [playerXp, setPlayerXp] = useState<string>('0');
-  const [lastStakeTime, setLastStakeTime] = useState<string>('Never');
-  const [txSignature, setTxSignature] = useState<string | null>(null);
+  // Blockchain Synchronized Metrics
+  const [playerXp, setPlayerXp] = useState("0");
+  const [lastStakeTime, setLastStakeTime] = useState("Never");
+  const [txSignature, setTxSignature] = useState(null);
 
+  // Frontend UI Clicker States
+  const [pendingXp, setPendingXp] = useState(0);
+  const [floatingTexts, setFloatingTexts] = useState([]);
+  const containerRef = useRef(null);
+
+  const initBtnDisabled = "w-full py-3 rounded-xl text-sm font-bold bg-slate-800 text-slate-500 cursor-not-allowed";
+  const initBtnActive = "w-full py-3 rounded-xl text-sm font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20";
+  
+  const saveBtnDisabled = "w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-slate-800 text-slate-500 cursor-not-allowed shadow-md";
+  const saveBtnActive = "w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-extrabold shadow-emerald-500/10 hover:brightness-110 shadow-md";
+  
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Fetches live data records directly from your on-chain PDA account layout
   const refreshOnChainData = useCallback(async () => {
     if (!connected || !publicKey) return;
     try {
       const data = await fetchPlayerState();
       if (data) {
         setSessionActive(data.isStaked);
-        setPlayerXp(data.accumulatedXp); 
-        
+        setPlayerXp(data.accumulatedXp);
         if (data.lastStakeTime > 0) {
           const date = new Date(data.lastStakeTime * 1000);
           setLastStakeTime(date.toLocaleTimeString());
         }
       } else {
         setSessionActive(false);
-        setPlayerXp('0');
-        setLastStakeTime('Never');
+        setPlayerXp("0");
+        setLastStakeTime("Never");
       }
     } catch (err) {
       console.error("Error reading account profile metrics:", err);
     }
   }, [connected, publicKey, fetchPlayerState]);
 
-  // NEW: Background State Polling Automation Hook
+  useEffect(() => {
+    if (mounted && connected) {
+      refreshOnChainData();
+    }
+  }, [mounted, connected, refreshOnChainData]);
+
   useEffect(() => {
     if (!mounted || !connected || !publicKey) return;
-
-    // 1. Fire an immediate query check the exact second the wallet pairs up
-    refreshOnChainData();
-
-    // 2. Schedule a low-overhead background polling worker loop (Runs every 5 seconds)
     const pollingInterval = setInterval(() => {
-      console.log("Polling Solana Devnet cluster for account state changes...");
       refreshOnChainData();
-    }, 5000);
-
-    // 3. Cleanup hook to instantly tear down the timer if a user disconnects or exits
+    }, 8000);
     return () => clearInterval(pollingInterval);
   }, [mounted, connected, publicKey, refreshOnChainData]);
 
@@ -66,148 +78,342 @@ export default function Home() {
     if (!connected || !publicKey) return;
     setIsLoading(true);
     setTxSignature(null);
-
     try {
       const signature = await initializeSession();
       setTxSignature(signature);
       await refreshOnChainData();
     } catch (err) {
-      console.error("Initialization call failed:", err);
+      console.error("Initialization failed:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handlePlayGame = async () => {
-    if (!connected || !publicKey) return;
+  const handleCoinClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isLoading) return;
+    setPendingXp((prev) => prev + 15);
+
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const newText = { id: Date.now(), x, y };
+      
+      setFloatingTexts((prev) => [...prev, newText]);
+      setTimeout(() => {
+        setFloatingTexts((prev) => prev.filter((t) => t.id !== newText.id));
+      }, 800);
+    }
+  };
+  const handleSyncBlockchain = async () => {
+    if (!connected || !publicKey || pendingXp === 0) return;
     setIsLoading(true);
     setTxSignature(null);
-
     try {
       const signature = await playGameAction();
       setTxSignature(signature);
-      await refreshOnChainData(); 
+      setPendingXp(0);
+      await refreshOnChainData();
     } catch (err) {
       console.error("Play game call failed:", err);
     } finally {
       setIsLoading(false);
     }
   };
-
   if (!mounted) {
-    return <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">🎮 Loading Engine...</div>;
+    return React.createElement(
+      "div",
+      {
+        className:
+          "min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center",
+      },
+      "🎮 Loading Engine..."
+    );
   }
-
-  return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-purple-500/30">
-      <header className="border-b border-slate-900 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl animate-bounce">🎮</span>
-            <h1 className="text-xl font-black tracking-wider bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
-              SOLANA ESCROW GAMEFI
-            </h1>
-          </div>
-          <div>
-            <WalletButton />
-          </div>
-        </div>
-      </header>
-
-      <section className="max-w-4xl mx-auto px-6 py-12 flex flex-col items-center text-center gap-6 flex-grow justify-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-semibold uppercase tracking-widest">
-          ⚡ Devnet Sandbox Active
-        </div>
-        
-        <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight max-w-2xl leading-none">
-          Stake Player Sessions. <br />
-          <span className="text-purple-400">Earn On-Chain Rewards.</span>
-        </h2>
-
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 w-full max-w-2xl">
-          <div className="p-6 bg-slate-900/40 border border-slate-900 rounded-2xl backdrop-blur-sm flex flex-col gap-4 text-left hover:border-purple-500/20 transition-all">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Session Dashboard</h3>
-            <div className="h-px bg-slate-800" />
-            
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Player Account:</span>
-              <span className="font-mono text-slate-300 truncate max-w-[150px]">
-                {connected && publicKey ? publicKey.toBase58() : "Not Connected"}
-              </span>
-            </div>
-            
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Session Status:</span>
-              <span className={`font-medium ${
-                !connected ? 'text-amber-500' : sessionActive ? 'text-emerald-400 animate-pulse' : 'text-purple-400'
-              }`}>
-                {!connected ? 'Wallet Disconnected' : sessionActive ? '🎮 In-Game Staked' : 'Ready to Initialize'}
-              </span>
-            </div>
-
-            {!sessionActive ? (
-              <button 
-                onClick={handleInitialize}
-                disabled={!connected || isLoading} 
-                className={`w-full mt-2 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                  !connected 
-                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
-                    : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20'
-                }`}
-              >
-                {isLoading ? <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" /> : 'Initialize Profile PDA'}
-              </button>
-            ) : (
-              <button 
-                onClick={handlePlayGame}
-                disabled={isLoading} 
-                className="w-full mt-2 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 shadow-lg shadow-emerald-500/10"
-              >
-                {isLoading ? <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" /> : '🎮 Play Game & Earn XP'}
-              </button>
-            )}
-          </div>
-
-          <div className="p-6 bg-slate-900/40 border border-slate-900 rounded-2xl backdrop-blur-sm flex flex-col gap-4 text-left hover:border-purple-500/20 transition-all">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Live Yield Stats</h3>
-              {/* Optional UI telemetry pulse to signal active background fetching */}
-              {connected && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />}
-            </div>
-            <div className="h-px bg-slate-800" />
-            
-            <div className="flex flex-col gap-1">
-              <span className="text-xs text-slate-500 uppercase font-semibold">Accumulated Experience</span>
-              <span className="text-3xl font-black text-white font-mono tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-                {playerXp} XP
-              </span>
-            </div>
-
-            <div className="flex justify-between text-xs mt-auto pt-4 border-t border-slate-900 text-slate-500">
-              <span>Last Sync: <span className="text-slate-300 font-mono">{lastStakeTime}</span></span>
-              <span>Cluster: Devnet</span>
-            </div>
-          </div>
-        </div>
-
-        {txSignature && (
-          <div className="mt-4 p-4 w-full max-w-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-xs font-mono break-all text-left">
-            <p className="font-bold mb-1">✓ Transaction Confirmed On-Chain!</p>
-            <a 
-              href={`https://solana.com{txSignature}?cluster=devnet`} 
-              target="_blank" 
-              rel="noreferrer"
-              className="underline hover:text-emerald-300 transition-colors"
-            >
-              View on Solana Explorer: {txSignature}
-            </a>
-          </div>
-        )}
-      </section>
-
-      <footer className="border-t border-slate-900 bg-slate-950 text-center py-4 text-xs text-slate-600 font-mono">
-        Solana Program Framework • Rust & Anchor Ecosystem
-      </footer>
-    </main>
+  const explorerUrl = txSignature
+    ? "solana.com" + txSignature + "?cluster=devnet"
+    : "";
+  return React.createElement(
+    "main",
+    {
+      className:
+        "min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-purple-500/30",
+    },
+    React.createElement(
+      "header",
+      {
+        className:
+          "border-b border-slate-900 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50",
+      },
+      React.createElement(
+        "div",
+        {
+          className:
+            "max-w-7xl mx-auto px-6 h-16 flex items-center justify-between",
+        },
+        React.createElement(
+          "div",
+          { className: "flex items-center gap-3" },
+          React.createElement(
+            "span",
+            { className: "text-2xl animate-bounce" },
+            "🎮"
+          ),
+          React.createElement(
+            "h1",
+            {
+              className:
+                "text-xl font-black tracking-wider bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent",
+            },
+            "SOLANA ESCROW GAMEFI"
+          )
+        ),
+        React.createElement(
+          "div",
+          null,
+          React.createElement(WalletButton, null)
+        )
+      )
+    ),
+    React.createElement(
+      "section",
+      {
+        className:
+          "max-w-5xl mx-auto px-6 py-8 flex flex-col items-center text-center gap-6 flex-grow justify-center w-full",
+      },
+      React.createElement(
+        "div",
+        {
+          className:
+            "inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-semibold uppercase tracking-widest",
+        },
+        "⚡ Devnet Sandbox Active"
+      ),
+      !sessionActive
+        ? React.createElement(
+            "div",
+            {
+              className:
+                "max-w-md w-full p-8 bg-slate-900/40 border border-slate-900 rounded-3xl backdrop-blur-sm flex flex-col items-center gap-6",
+            },
+            React.createElement("div", { className: "text-5xl" }, "🔒"),
+            React.createElement(
+              "h2",
+              { className: "text-2xl font-black" },
+              "Game Session Locked"
+            ),
+            React.createElement(
+              "p",
+              { className: "text-sm text-slate-400" },
+              "Connect your Phantom wallet and initialize an explicit Program Derived Address (PDA) storage profile layout account to unlock gameplay interactions."
+            ),
+            React.createElement(
+              "button",
+              {
+                onClick: handleInitialize,
+                disabled: !connected || isLoading,
+                className: !connected ? initBtnDisabled : initBtnActive,
+              },
+              isLoading
+                ? React.createElement("div", {
+                    className:
+                      "w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mx-auto",
+                  })
+                : "Initialize Profile PDA"
+            )
+          )
+        : React.createElement(
+            "div",
+            {
+              className:
+                "grid gap-6 md:grid-cols-3 w-full max-w-4xl items-stretch",
+            },
+            React.createElement(
+              "div",
+              {
+                ref: containerRef,
+                className:
+                  "md:col-span-2 relative p-8 bg-slate-900/30 border border-slate-900 rounded-3xl backdrop-blur-sm flex flex-col items-center justify-center min-h-[340px] overflow-hidden group hover:border-purple-500/10 transition-colors",
+              },
+              floatingTexts.map((text) =>
+                React.createElement(
+                  "span",
+                  {
+                    key: text.id,
+                    style: { left: text.x, top: text.y },
+                    className:
+                      "absolute pointer-events-none font-mono text-emerald-400 font-black text-xl animate-ping select-none z-40",
+                  },
+                  "+15 XP"
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "absolute top-4 left-4 flex flex-col text-left" },
+                React.createElement(
+                  "span",
+                  {
+                    className:
+                      "text-xs text-slate-500 uppercase font-bold tracking-wider",
+                  },
+                  "Unsaved Clicker Progress"
+                ),
+                React.createElement(
+                  "span",
+                  {
+                    className:
+                      "text-2xl font-black font-mono text-emerald-400 animate-pulse",
+                  },
+                  pendingXp + " XP"
+                )
+              ),
+              React.createElement(
+                "button",
+                {
+                  onClick: handleCoinClick,
+                  disabled: isLoading,
+                  className:
+                    "w-40 h-40 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-6xl shadow-2xl shadow-purple-500/20 active:scale-95 hover:scale-105 transition-transform duration-70 relative cursor-pointer outline-none select-none border-4 border-purple-400/20",
+                },
+                "💎"
+              ),
+              React.createElement(
+                "span",
+                {
+                  className:
+                    "text-xs text-slate-500 mt-6 font-medium animate-pulse",
+                },
+                "Click the Core Gem to harvest pending game actions"
+              )
+            ),
+            React.createElement(
+              "div",
+              {
+                className:
+                  "p-6 bg-slate-900/50 border border-slate-900 rounded-3xl backdrop-blur-sm flex flex-col justify-between text-left",
+              },
+              React.createElement(
+                "div",
+                { className: "flex flex-col gap-4" },
+                React.createElement(
+                  "div",
+                  { className: "flex justify-between items-center" },
+                  React.createElement(
+                    "h3",
+                    {
+                      className:
+                        "text-sm font-bold text-slate-400 uppercase tracking-wider",
+                    },
+                    "Live On-Chain Stats"
+                  ),
+                  React.createElement("span", {
+                    className:
+                      "w-2 h-2 rounded-full bg-emerald-400 animate-ping",
+                  })
+                ),
+                React.createElement("div", { className: "h-px bg-slate-800" }),
+                React.createElement(
+                  "div",
+                  { className: "flex flex-col gap-0.5" },
+                  React.createElement(
+                    "span",
+                    { className: "text-xs text-slate-500 font-medium" },
+                    "Verified Total Ledger Score"
+                  ),
+                  React.createElement(
+                    "span",
+                    {
+                      className:
+                        "text-3xl font-black font-mono text-white tracking-tight",
+                    },
+                    playerXp + " XP"
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  {
+                    className:
+                      "flex flex-col gap-1 text-xs text-slate-400 bg-slate-950/40 p-3 rounded-xl border border-slate-900/60 font-mono",
+                  },
+                  React.createElement(
+                    "div",
+                    { className: "flex justify-between" },
+                    React.createElement(
+                      "span",
+                      { className: "text-slate-500" },
+                      "Last Sync:"
+                    ),
+                    React.createElement("span", null, lastStakeTime)
+                  ),
+                  React.createElement(
+                    "div",
+                    { className: "flex justify-between" },
+                    React.createElement(
+                      "span",
+                      { className: "text-slate-500" },
+                      "Multiplier:"
+                    ),
+                    React.createElement(
+                      "span",
+                      { className: "text-purple-400" },
+                      "1.5x Boost"
+                    )
+                  )
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "flex flex-col gap-2 mt-6" },
+                React.createElement(
+                  "button",
+                  {
+                    onClick: handleSyncBlockchain,
+                    disabled: pendingXp === 0 || isLoading,
+                    className:
+                      pendingXp === 0 ? saveBtnDisabled : saveBtnActive,
+                  },
+                  isLoading
+                    ? React.createElement("div", {
+                        className:
+                          "w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin mx-auto",
+                      })
+                    : "Save Score to Solana"
+                )
+              )
+            )
+          ),
+      txSignature
+        ? React.createElement(
+            "div",
+            {
+              className:
+                "mt-4 p-4 w-full max-w-4xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-xs font-mono break-all text-left",
+            },
+            React.createElement(
+              "p",
+              { className: "font-bold mb-1" },
+              "✓ Block Transaction Settlement Confirmed On-Chain!"
+            ),
+            React.createElement(
+              "a",
+              {
+                href: explorerUrl,
+                target: "_blank",
+                rel: "noreferrer",
+                className: "underline hover:text-emerald-300 transition-colors",
+              },
+              "View on Solana Explorer: " + txSignature
+            )
+          )
+        : null
+    ),
+    React.createElement(
+      "footer",
+      {
+        className:
+          "border-t border-slate-900 bg-slate-950 text-center py-4 text-xs text-slate-600 font-mono",
+      },
+      "Solana Program Framework • Rust & Anchor Ecosystem"
+    )
   );
 }
