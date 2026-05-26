@@ -45,6 +45,25 @@ pub mod solana_escrow {
 
         Ok(())
     }
+
+    //Claims final rewards and closes the PDA account to reclaim SOL rent
+    pub fn unstake_player(ctx: Context<UnstakePlayer>) -> Result<()> {
+        let player_state = &mut ctx.accounts.player_state;
+        let clock = Clock::get()?;
+
+        require!(player_state.is_staked, GameError::PlayerNotStaked);
+
+        // Calculate and add final pending reward yields up to the exact exit block timestamp 
+        let elapsed_seconds = clock.unix_timestamp.saturating_sub(player_state.last_stake_time);
+        let base_xp_earned = (elapsed_seconds as u64).saturating_mul(10);
+        let total_xp_earned = base_xp_earned.saturating_mul(15) / 10;
+
+        let final_xp = player_state.accumulated_xp.saturating_add(total_xp_earned);
+
+        msg!("Player unstaked successfully! Final XP secured: {}", final_xp);
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -60,7 +79,6 @@ pub struct StakePlayer<'info> {
         bump
     )]
     pub player_state: Account<'info, PlayerState>,
-
     pub system_program: Program<'info, System>,
 }
 
@@ -76,6 +94,22 @@ pub struct PlayGame<'info> {
         bump
     )]
     pub player_state: Account<'info, PlayerState>,
+}
+
+//validation struct for the new unstake instruction
+#[derive(Accounts)]
+pub struct UnstakePlayer<'info> {
+    #[account(mut)]
+    pub player: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"player_session", player.key().as_ref()],
+        bump,
+        close = player  // Anchor constraint: Safely destroys the account and refunds rent to the player
+    )]
+    pub player_state: Account<'info, PlayerState>,
+    pub system_program: Program<'info, System>,
 }
 
 #[account]

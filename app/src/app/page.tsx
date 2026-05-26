@@ -13,7 +13,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
   
-  // Dynamic metrics tracking state
+  // Dynamic variables synced via real-time RPC polling
   const [playerXp, setPlayerXp] = useState<string>('0');
   const [lastStakeTime, setLastStakeTime] = useState<string>('Never');
   const [txSignature, setTxSignature] = useState<string | null>(null);
@@ -22,7 +22,7 @@ export default function Home() {
     setMounted(true);
   }, []);
 
-  // Polls the real on-chain state values from the Solana cluster
+  // Fetches live data records directly from your on-chain PDA account layout
   const refreshOnChainData = useCallback(async () => {
     if (!connected || !publicKey) return;
     try {
@@ -45,14 +45,23 @@ export default function Home() {
     }
   }, [connected, publicKey, fetchPlayerState]);
 
-  // Handle data fetching sync triggers
+  // NEW: Background State Polling Automation Hook
   useEffect(() => {
-    if (mounted && connected) {
-      refreshOnChainData();
-    }
-  }, [mounted, connected, refreshOnChainData]);
+    if (!mounted || !connected || !publicKey) return;
 
-  // Action Handler 1: Creates the PDA Profile on-chain
+    // 1. Fire an immediate query check the exact second the wallet pairs up
+    refreshOnChainData();
+
+    // 2. Schedule a low-overhead background polling worker loop (Runs every 5 seconds)
+    const pollingInterval = setInterval(() => {
+      console.log("Polling Solana Devnet cluster for account state changes...");
+      refreshOnChainData();
+    }, 5000);
+
+    // 3. Cleanup hook to instantly tear down the timer if a user disconnects or exits
+    return () => clearInterval(pollingInterval);
+  }, [mounted, connected, publicKey, refreshOnChainData]);
+
   const handleInitialize = async () => {
     if (!connected || !publicKey) return;
     setIsLoading(true);
@@ -69,7 +78,6 @@ export default function Home() {
     }
   };
 
-  // Action Handler 2: Dispatches the gameplay instruction to boost XP balance
   const handlePlayGame = async () => {
     if (!connected || !publicKey) return;
     setIsLoading(true);
@@ -78,7 +86,7 @@ export default function Home() {
     try {
       const signature = await playGameAction();
       setTxSignature(signature);
-      await refreshOnChainData(); // Refresh to catch updated on-chain u64 XP increments
+      await refreshOnChainData(); 
     } catch (err) {
       console.error("Play game call failed:", err);
     } finally {
@@ -92,7 +100,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-purple-500/30">
-      {/* Top Header Section */}
       <header className="border-b border-slate-900 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -107,7 +114,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Core Dashboard Blocks */}
       <section className="max-w-4xl mx-auto px-6 py-12 flex flex-col items-center text-center gap-6 flex-grow justify-center">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-semibold uppercase tracking-widest">
           ⚡ Devnet Sandbox Active
@@ -119,8 +125,6 @@ export default function Home() {
         </h2>
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2 w-full max-w-2xl">
-          
-          {/* Main Context Action Card */}
           <div className="p-6 bg-slate-900/40 border border-slate-900 rounded-2xl backdrop-blur-sm flex flex-col gap-4 text-left hover:border-purple-500/20 transition-all">
             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Session Dashboard</h3>
             <div className="h-px bg-slate-800" />
@@ -141,7 +145,6 @@ export default function Home() {
               </span>
             </div>
 
-            {/* Smart Dual-Purpose State Button */}
             {!sessionActive ? (
               <button 
                 onClick={handleInitialize}
@@ -165,9 +168,12 @@ export default function Home() {
             )}
           </div>
 
-          {/* Metrics Telemetry Display Card */}
           <div className="p-6 bg-slate-900/40 border border-slate-900 rounded-2xl backdrop-blur-sm flex flex-col gap-4 text-left hover:border-purple-500/20 transition-all">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Live Yield Stats</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Live Yield Stats</h3>
+              {/* Optional UI telemetry pulse to signal active background fetching */}
+              {connected && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />}
+            </div>
             <div className="h-px bg-slate-800" />
             
             <div className="flex flex-col gap-1">
@@ -178,13 +184,12 @@ export default function Home() {
             </div>
 
             <div className="flex justify-between text-xs mt-auto pt-4 border-t border-slate-900 text-slate-500">
-              <span>Last Activity: <span className="text-slate-300 font-mono">{lastStakeTime}</span></span>
+              <span>Last Sync: <span className="text-slate-300 font-mono">{lastStakeTime}</span></span>
               <span>Cluster: Devnet</span>
             </div>
           </div>
         </div>
 
-        {/* Transaction Success Explorer Notifications link */}
         {txSignature && (
           <div className="mt-4 p-4 w-full max-w-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-xs font-mono break-all text-left">
             <p className="font-bold mb-1">✓ Transaction Confirmed On-Chain!</p>
